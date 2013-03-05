@@ -682,6 +682,7 @@
   <java-symbol type="string" name="postalTypeOther" />
   <java-symbol type="string" name="postalTypeWork" />
   <java-symbol type="string" name="power_off" />
+  <java-symbol type="string" name="reboot_phone" />
   <java-symbol type="string" name="preposition_for_date" />
   <java-symbol type="string" name="preposition_for_time" />
   <java-symbol type="string" name="progress_erasing" />
@@ -1407,6 +1408,7 @@
   <java-symbol type="string" name="bugreport_message" />
   <java-symbol type="string" name="faceunlock_multiple_failures" />
   <java-symbol type="string" name="global_action_power_off" />
+  <java-symbol type="string" name="global_action_reboot_phone" />
   <java-symbol type="string" name="global_actions_airplane_mode_off_status" />
   <java-symbol type="string" name="global_actions_airplane_mode_on_status" />
   <java-symbol type="string" name="global_actions_toggle_airplane_mode" />
@@ -1819,4 +1821,7 @@
 
   <!-- From PinyinIME(!!!) -->
   <java-symbol type="string" name="inputMethod" />
+
+  <!-- Reboot icon -->
+  <java-symbol type="drawable" name="ic_lock_reboot" />
 </resources>

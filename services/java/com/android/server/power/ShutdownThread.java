@@ -104,6 +104,12 @@ public final class ShutdownThread extends Thread {
         shutdownInner(context, confirm);
     }
 
+    public static void reboot(final Context context, boolean confirm) {
+        mReboot = true;
+        mRebootSafeMode = false;
+        shutdownInner(context, confirm);
+    }
+
     static void shutdownInner(final Context context, boolean confirm) {
         // ensure that only one thread is trying to power down.
         // any additional calls are just returned
