@@ -85,6 +85,7 @@ public class ExternalStorageFormatter extends Service
         }
 
         mStorageVolume = intent.getParcelableExtra(StorageVolume.EXTRA_STORAGE_VOLUME);
+	Log.i(TAG, "ExternalStorageFormatter::onStartCommand, mStorageVolume=" + ((mStorageVolume == null) ? "<NULL>" : mStorageVolume));
 
         if (mProgressDialog == null) {
             mProgressDialog = new ProgressDialog(this);
@@ -144,6 +145,7 @@ public class ExternalStorageFormatter extends Service
         String status = mStorageVolume == null ?
                 Environment.getExternalStorageState() :
                 mStorageManager.getVolumeState(mStorageVolume.getPath());
+
         if (Environment.MEDIA_MOUNTED.equals(status)
                 || Environment.MEDIA_MOUNTED_READ_ONLY.equals(status)) {
             updateProgressDialog(R.string.progress_unmounting);
@@ -165,6 +167,7 @@ public class ExternalStorageFormatter extends Service
             final String extStoragePath = mStorageVolume == null ?
                     Environment.getLegacyExternalStorageDirectory().toString() :
                     mStorageVolume.getPath();
+	    Log.i(TAG, "updateProgress, formatting:"+extStoragePath);
             if (mountService != null) {
                 new Thread() {
                     @Override
