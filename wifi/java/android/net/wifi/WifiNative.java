@@ -353,9 +353,9 @@ public class WifiNative {
         if (mSuspendOptEnabled == enabled) return true;
         mSuspendOptEnabled = enabled;
         if (enabled) {
-            return doBooleanCommand("DRIVER SETSUSPENDMODE 1");
+            return doBooleanCommand("DRIVER SETSUSPENDOPT 1");
         } else {
-            return doBooleanCommand("DRIVER SETSUSPENDMODE 0");
+            return doBooleanCommand("DRIVER SETSUSPENDOPT 0");
         }
     }
 
