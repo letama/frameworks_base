@@ -173,6 +173,18 @@ class WifiConfigStore {
     }
 
     /**
+     * Retrieve a specific network configuration from its id
+     *
+     */
+    WifiConfiguration getConfiguredNetwork(int netId) {
+        if (netId != INVALID_NETWORK_ID) {
+	    return mConfiguredNetworks.get(netId);
+	}
+	return null;
+    }
+
+
+    /**
      * enable all networks and save config. This will be a no-op if the list
      * of configured networks indicates all networks as being enabled
      */

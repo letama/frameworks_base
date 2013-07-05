@@ -1,0 +1,14 @@
+LOCAL_PATH := $(call my-dir)
+
+# Extracted class for Apdu service
+include $(CLEAR_VARS)
+LOCAL_PREBUILT_JAVA_LIBRARIES := apdu:apdu.jar
+include $(BUILD_MULTI_PREBUILT)
+
+#LOCAL_MODULE_TAGS := optional
+# LOCAL_MODULE := apdu
+# LOCAL_MODULE_CLASS := JAVA_LIBRARIES
+# LOCAL_SRC_FILE := $(LOCAL_MODULE).jar
+# LOCAL_MODULE_SUFFIX := $(COMMON_JAVA_PACKAGE_SUFFIX)
+# include $(BUILD_STATIC_JAVA_LIBRARY)
+

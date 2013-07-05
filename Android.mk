@@ -26,6 +26,13 @@ LOCAL_PATH := $(call my-dir)
 # TODO: find a more appropriate way to do this.
 framework_res_source_path := APPS/framework-res_intermediates/src
 
+# PL: apdu prebuilt
+#
+# include $(CLEAR_VARS)
+# LOCAL_PREBUILT_JAVA_LIBRARIES := apdu:apdu/apdu.jar
+# include $(BUILD_MULTI_PREBUILT)
+
+
 # the library
 # ============================================================
 include $(CLEAR_VARS)
@@ -235,8 +242,10 @@ LOCAL_INTERMEDIATE_SOURCES := \
 			$(framework_res_source_path)/com/android/internal/R.java
 
 LOCAL_NO_STANDARD_LIBRARIES := true
-LOCAL_JAVA_LIBRARIES := bouncycastle core core-junit ext
-
+LOCAL_JAVA_LIBRARIES := bouncycastle core core-junit ext apdu-stubs
+# apdu-stubs
+# apdu
+# LOCAL_STATIC_JAVA_LIBRARIES := apdu
 LOCAL_MODULE := framework
 LOCAL_MODULE_CLASS := JAVA_LIBRARIES
 

@@ -662,11 +662,15 @@ public class WifiMonitor {
          */
         private void handleSupplicantStateChange(String dataString) {
             WifiSsid wifiSsid = null;
-            int index = dataString.lastIndexOf("SSID=");
+
+	    Log.w(TAG, "PL: *** handleSupplicantStateChange *** : {" + dataString + "}");
+
+	    /*            int index = dataString.lastIndexOf("SSID=");
             if (index != -1) {
                 wifiSsid = WifiSsid.createFromAsciiEncoded(
                         dataString.substring(index + 5));
             }
+	    */
             String[] dataTokens = dataString.split(" ");
 
             String BSSID = null;

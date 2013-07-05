@@ -59,6 +59,7 @@ public class WifiNative {
 
     public native static boolean startSupplicant(boolean p2pSupported);
 
+
     /* Sends a kill signal to supplicant. To be used when we have lost connection
        or when the supplicant is hung */
     public native static boolean killSupplicant(boolean p2pSupported);
@@ -79,9 +80,18 @@ public class WifiNative {
 
     private native String doStringCommand(String iface, String command);
 
+    public native void setApduSocketCommand(String iface, String socketName);
+
     public WifiNative(String iface) {
         mInterface = iface;
         mTAG = "WifiNative-" + iface;
+    }
+
+    public void setApduSocketCommand(String command) {
+	String ret;
+	Log.d(mTAG, "PL: WifiNative.setApduSocketCommand("+command+")");
+	ret = doStringCommand(mInterface, "SET_APDU_SOCKET "+command);
+	Log.d(mTAG, "PL: >>> ret="+ ret);
     }
 
     public boolean connectToSupplicant() {
@@ -213,7 +223,9 @@ public class WifiNative {
      * MASK=<N> see wpa_supplicant/src/common/wpa_ctrl.h for details
      */
     public String scanResults() {
-        return doStringCommand("BSS RANGE=ALL MASK=0x1986");
+        // PL: Sony proprio is using SCAN_RESULTS
+        // return doStringCommand("BSS RANGE=ALL MASK=0x1986");
+	return doStringCommand("SCAN_RESULTS");
     }
 
     public boolean startDriver() {

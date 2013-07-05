@@ -52,6 +52,7 @@ import android.net.LinkProperties;
 import android.net.NetworkInfo;
 import android.net.NetworkInfo.DetailedState;
 import android.net.NetworkUtils;
+import android.net.apdu.ApduService;
 import android.net.wifi.RssiPacketCountInfo;
 import android.net.wifi.WpsResult.Status;
 import android.net.wifi.p2p.WifiP2pManager;
@@ -183,6 +184,11 @@ public class WifiStateMachine extends StateMachine {
      */
     private static final int DRIVER_START_TIME_OUT_MSECS = 10000;
 
+    /**
+     * EAP SIM service socket
+     */
+    private static final String APDU_SOCKET_NAME = "APDU_COMMAND_SOCKET";
+
     /* Tracks sequence number on a driver time out */
     private int mDriverStartToken = 0;
 
@@ -205,6 +211,8 @@ public class WifiStateMachine extends StateMachine {
     private AlarmManager mAlarmManager;
     private PendingIntent mScanIntent;
     private PendingIntent mDriverStopIntent;
+
+    private ApduService mApduService = new ApduService(APDU_SOCKET_NAME);
 
     /* Tracks current frequency mode */
     private AtomicInteger mFrequencyBand = new AtomicInteger(WifiManager.WIFI_FREQUENCY_BAND_AUTO);
@@ -747,7 +755,8 @@ public class WifiStateMachine extends StateMachine {
     /**
      * TODO: doc
      */
-    public void startScan(boolean forceActive) {
+    public void startScan(boolean forceActive){
+	log("PL:startScan("+forceActive+")");
         sendMessage(obtainMessage(CMD_START_SCAN, forceActive ?
                 SCAN_ACTIVE : SCAN_PASSIVE, 0));
     }
@@ -1420,107 +1429,140 @@ public class WifiStateMachine extends StateMachine {
         mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
     }
 
-    private static final String BSSID_STR = "bssid=";
-    private static final String FREQ_STR = "freq=";
-    private static final String LEVEL_STR = "level=";
-    private static final String TSF_STR = "tsf=";
-    private static final String FLAGS_STR = "flags=";
-    private static final String SSID_STR = "ssid=";
-    private static final String DELIMITER_STR = "====";
     /**
-     * Format:
-     * bssid=68:7f:76:d7:1a:6e
-     * freq=2412
-     * level=-44
-     * tsf=1344626243700342
-     * flags=[WPA2-PSK-CCMP][WPS][ESS]
-     * ssid=zfdy
-     * ====
-     * bssid=68:5f:74:d7:1a:6f
-     * freq=5180
-     * level=-73
-     * tsf=1344626243700373
-     * flags=[WPA2-PSK-CCMP][WPS][ESS]
-     * ssid=zuby
-     * ====
+     * Parse the scan result line passed to us by wpa_supplicant (helper).
+     * @param line the line to parse
+     * @return the {@link ScanResult} object
      */
-    private void setScanResults(String scanResults) {
-        String bssid = "";
-        int level = 0;
-        int freq = 0;
-        long tsf = 0;
-        String flags = "";
-        WifiSsid wifiSsid = null;
-
-        if (scanResults == null) {
-            return;
-        }
-
-        synchronized(mScanResultCache) {
-            mScanResults = new ArrayList<ScanResult>();
-            String[] lines = scanResults.split("\n");
-
-            for (String line : lines) {
-                if (line.startsWith(BSSID_STR)) {
-                    bssid = line.substring(BSSID_STR.length());
-                } else if (line.startsWith(FREQ_STR)) {
+    private ScanResult parseScanResult(String line) {
+        ScanResult scanResult = null;
+        if (line != null) {
+            /*
+             * Cache implementation (LinkedHashMap) is not synchronized, thus,
+             * must synchronized here!
+             */
+	    log("ScanResLine:"+line);
+            synchronized (mScanResultCache) {
+                String[] result = scanResultPattern.split(line);
+                if (3 <= result.length && result.length <= 5) {
+                    String bssid = result[0];
+                    // bssid | frequency | level | flags | ssid
+                    int frequency;
+                    int level;
                     try {
-                        freq = Integer.parseInt(line.substring(FREQ_STR.length()));
-                    } catch (NumberFormatException e) {
-                        freq = 0;
-                    }
-                } else if (line.startsWith(LEVEL_STR)) {
-                    try {
-                        level = Integer.parseInt(line.substring(LEVEL_STR.length()));
+                        frequency = Integer.parseInt(result[1]);
+                        level = Integer.parseInt(result[2]);
                         /* some implementations avoid negative values by adding 256
                          * so we need to adjust for that here.
                          */
                         if (level > 0) level -= 256;
-                    } catch(NumberFormatException e) {
+                    } catch (NumberFormatException e) {
+                        frequency = 0;
                         level = 0;
                     }
-                } else if (line.startsWith(TSF_STR)) {
-                    try {
-                        tsf = Long.parseLong(line.substring(TSF_STR.length()));
-                    } catch (NumberFormatException e) {
-                        tsf = 0;
-                    }
-                } else if (line.startsWith(FLAGS_STR)) {
-                    flags = line.substring(FLAGS_STR.length());
-                } else if (line.startsWith(SSID_STR)) {
-                    wifiSsid = WifiSsid.createFromAsciiEncoded(
-                            line.substring(SSID_STR.length()));
-                } else if (line.startsWith(DELIMITER_STR)) {
-                    if (bssid != null) {
-                        String ssid = (wifiSsid != null) ? wifiSsid.toString() : WifiSsid.NONE;
-                        String key = bssid + ssid;
-                        ScanResult scanResult = mScanResultCache.get(key);
-                        if (scanResult != null) {
-                            scanResult.level = level;
-                            scanResult.wifiSsid = wifiSsid;
-                            // Keep existing API
-                            scanResult.SSID = (wifiSsid != null) ? wifiSsid.toString() :
-                                    WifiSsid.NONE;
-                            scanResult.capabilities = flags;
-                            scanResult.frequency = freq;
-                            scanResult.timestamp = tsf;
+
+                    /*
+                     * The formatting of the results returned by
+                     * wpa_supplicant is intended to make the fields
+                     * line up nicely when printed,
+                     * not to make them easy to parse. So we have to
+                     * apply some heuristics to figure out which field
+                     * is the SSID and which field is the flags.
+                     */
+                    String ssid;
+                    String flags;
+                    if (result.length == 4) {
+                        if (result[3].charAt(0) == '[') {
+                            flags = result[3];
+                            ssid = "";
                         } else {
+                            flags = "";
+                            ssid = result[3];
+                        }
+                    } else if (result.length == 5) {
+                        flags = result[3];
+                        ssid = result[4];
+                    } else {
+                        // Here, we must have 3 fields: no flags and ssid
+                        // set
+                        flags = "";
+                        ssid = "";
+                    }
+
+		    log("parsing: bssid="+bssid+", ssid="+ssid);
+                    // bssid + ssid is the hash key
+                    String key = bssid + ssid;
+                    scanResult = mScanResultCache.get(key);
+                    if (scanResult != null) {
+			scanResult.wifiSsid = WifiSsid.createFromAsciiEncoded(ssid);
+                        scanResult.level = level;
+                        scanResult.SSID = ssid;
+                        scanResult.capabilities = flags;
+                        scanResult.frequency = frequency;
+                    } else {
+                        // Do not add scan results that have no SSID set
+                        if (0 < ssid.trim().length()) {
                             scanResult =
                                 new ScanResult(
-                                        wifiSsid, bssid, flags, level, freq, tsf);
+					       WifiSsid.createFromAsciiEncoded(ssid),
+					       bssid,
+					       flags,
+					       level,
+					       frequency,
+					       0L
+						);
                             mScanResultCache.put(key, scanResult);
                         }
-                        mScanResults.add(scanResult);
                     }
-                    bssid = null;
-                    level = 0;
-                    freq = 0;
-                    tsf = 0;
-                    flags = "";
-                    wifiSsid = null;
+                } else {
+                    loge("Misformatted scan result text with " +
+                          result.length + " fields: " + line);
                 }
             }
         }
+
+        return scanResult;
+    }
+
+    /**
+     * scanResults input format
+     * 00:bb:cc:dd:cc:ee       2427    166     [WPA-EAP-TKIP][WPA2-EAP-CCMP]   Net1
+     * 00:bb:cc:dd:cc:ff       2412    165     [WPA-EAP-TKIP][WPA2-EAP-CCMP]   Net2
+     */
+    private void setScanResults(String scanResults) {
+        if (scanResults == null) {
+            return;
+        }
+
+        List<ScanResult> scanList = new ArrayList<ScanResult>();
+
+        int lineCount = 0;
+
+        int scanResultsLen = scanResults.length();
+        // Parse the result string, keeping in mind that the last line does
+        // not end with a newline.
+        for (int lineBeg = 0, lineEnd = 0; lineEnd <= scanResultsLen; ++lineEnd) {
+            if (lineEnd == scanResultsLen || scanResults.charAt(lineEnd) == '\n') {
+                ++lineCount;
+
+                if (lineCount == 1) {
+                    lineBeg = lineEnd + 1;
+                    continue;
+                }
+                if (lineEnd > lineBeg) {
+                    String line = scanResults.substring(lineBeg, lineEnd);
+                    ScanResult scanResult = parseScanResult(line);
+                    if (scanResult != null) {
+                        scanList.add(scanResult);
+                    } else {
+                        //TODO: hidden network handling
+                    }
+                }
+                lineBeg = lineEnd + 1;
+            }
+        }
+
+        mScanResults = scanList;
     }
 
     /*
@@ -1689,6 +1731,9 @@ public class WifiStateMachine extends StateMachine {
     private SupplicantState handleSupplicantStateChange(Message message) {
         StateChangeResult stateChangeResult = (StateChangeResult) message.obj;
         SupplicantState state = stateChangeResult.state;
+
+	log("PL: **** handleSupplicantStateChange, new state=" + state.toString());
+
         // Supplicant state change
         // [31-13] Reserved for future use
         // [8 - 0] Supplicant state (as defined in SupplicantState.java)
@@ -1698,12 +1743,27 @@ public class WifiStateMachine extends StateMachine {
         // Network id is only valid when we start connecting
         if (SupplicantState.isConnecting(state)) {
             mWifiInfo.setNetworkId(stateChangeResult.networkId);
+	    // We only have network id, ssid is missing
+	    WifiConfiguration config = mWifiConfigStore.getConfiguredNetwork(stateChangeResult.networkId);
+	    if(config != null) {
+		String ssid = config.SSID;
+		if(ssid != null) {
+		    mWifiInfo.setSSID(WifiSsid.createFromAsciiEncoded(ssid.substring(1, ssid.length() - 1)));
+		}
+	    }
         } else {
             mWifiInfo.setNetworkId(WifiConfiguration.INVALID_NETWORK_ID);
         }
 
-        mWifiInfo.setBSSID(stateChangeResult.BSSID);
-        mWifiInfo.setSSID(stateChangeResult.wifiSsid);
+        if (state == SupplicantState.ASSOCIATING) {
+            /* BSSID is valid only in ASSOCIATING state */
+            mWifiInfo.setBSSID(stateChangeResult.BSSID);
+        }
+
+	if(stateChangeResult.wifiSsid != null) {
+	    log("PL: **** handleSupplicantStateChange, ssid not null = " + stateChangeResult.wifiSsid.toString());
+	    mWifiInfo.setSSID(stateChangeResult.wifiSsid);
+	}
 
         mSupplicantStateTracker.sendMessage(Message.obtain(message));
 
@@ -2372,6 +2432,13 @@ public class WifiStateMachine extends StateMachine {
             switch(message.what) {
                 case WifiMonitor.SUP_CONNECTION_EVENT:
                     if (DBG) log("Supplicant connection established");
+		    // PL: give socket name to wpa_supplicant and start apdu service
+		    log("PL:mWifiNative.setApduSocketCommand()");
+		    mWifiNative.setApduSocketCommand(APDU_SOCKET_NAME);
+		    // PL: temp comment
+		    log("PL:mApduService.start()");
+		    mApduService.start();
+		    log("PL:wifi enabled");
                     setWifiState(WIFI_STATE_ENABLED);
                     mSupplicantRestartCount = 0;
                     /* Reset the supplicant state to indicate the supplicant
