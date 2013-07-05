@@ -47,6 +47,7 @@ import com.android.systemui.statusbar.policy.BrightnessController.BrightnessStat
 import com.android.systemui.statusbar.policy.CurrentUserTracker;
 import com.android.systemui.statusbar.policy.LocationController.LocationGpsStateChangeCallback;
 import com.android.systemui.statusbar.policy.NetworkController.NetworkSignalChangedCallback;
+import android.net.wifi.WifiManager;
 
 import java.util.List;
 
@@ -104,6 +105,17 @@ class QuickSettingsModel implements BluetoothStateChangeCallback,
             if (action.equals(Intent.ACTION_ALARM_CHANGED)) {
                 onAlarmChanged(intent);
                 onNextAlarmChanged();
+            }
+        }
+    };
+
+    /** Broadcast receive to determine if wifi ap changed. */
+    private BroadcastReceiver mWifiApIntentReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (action.equals(WifiManager.WIFI_AP_STATE_CHANGED_ACTION)) {
+                onWifiApChanged(intent);
             }
         }
     };
@@ -235,6 +247,10 @@ class QuickSettingsModel implements BluetoothStateChangeCallback,
     private RefreshCallback mSettingsCallback;
     private State mSettingsState = new State();
 
+    private QuickSettingsTileView mWifiApTile;
+    private RefreshCallback mWifiApCallback;
+    private State mWifiApState = new State();
+
     public QuickSettingsModel(Context context) {
         mContext = context;
         mHandler = new Handler();
@@ -260,6 +276,10 @@ class QuickSettingsModel implements BluetoothStateChangeCallback,
         IntentFilter alarmIntentFilter = new IntentFilter();
         alarmIntentFilter.addAction(Intent.ACTION_ALARM_CHANGED);
         context.registerReceiver(mAlarmIntentReceiver, alarmIntentFilter);
+
+        IntentFilter wifiApIntentFilter = new IntentFilter();
+        wifiApIntentFilter.addAction(WifiManager.WIFI_AP_STATE_CHANGED_ACTION);
+        context.registerReceiver(mWifiApIntentReceiver, wifiApIntentFilter);
     }
 
     void updateResources() {
@@ -714,4 +734,16 @@ class QuickSettingsModel implements BluetoothStateChangeCallback,
         onNextAlarmChanged();
         onBugreportChanged();
     }
+
+    // Wifi Ap
+    void addWifiApTile(QuickSettingsTileView view, RefreshCallback cb) {
+	mWifiApTile = view;
+	mWifiApCallback = cb;
+	mWifiApCallback.refreshView(mWifiApTile, mWifiApState);
+    }
+
+    void onWifiApChanged(Intent intent) {
+	mWifiApCallback.refreshView(mWifiApTile, mWifiApState);
+    }
+
 }

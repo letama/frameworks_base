@@ -420,13 +420,13 @@ class QuickSettings {
                             return null;
                         }
                     }.execute();
-                    wifiTile.setPressed(false);
             }
         });
         if (LONG_PRESS_TOGGLES) {
             wifiTile.setOnLongClickListener(new View.OnLongClickListener() {
                 @Override
                 public boolean onLongClick(View v) {
+                    wifiTile.setPressed(false);
 		    startSettingsActivity(android.provider.Settings.ACTION_WIFI_SETTINGS);
                     return true;
                 }} );
@@ -445,6 +445,40 @@ class QuickSettings {
             }
         });
         parent.addView(wifiTile);
+
+	QuickSettingsTileView WifiApTile = (QuickSettingsTileView) inflater.inflate(R.layout.quick_settings_tile, parent, false);
+	WifiApTile.setContent(R.layout.quick_settings_tile_wifi_ap, inflater);
+	WifiApTile.setOnClickListener(new View.OnClickListener() {
+		@Override
+		public void onClick(View v) {
+		    final WifiManager wifiManager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
+		    int WifiApState = wifiManager.getWifiApState();
+		    if (WifiApState == WifiManager.WIFI_AP_STATE_DISABLED || WifiApState == WifiManager.WIFI_AP_STATE_DISABLING) {
+			wifiManager.setWifiEnabled(false);
+			wifiManager.setWifiApEnabled(null, true);
+		    } else if (WifiApState == WifiManager.WIFI_AP_STATE_ENABLED || WifiApState == WifiManager.WIFI_AP_STATE_ENABLING) {
+			wifiManager.setWifiApEnabled(null, false);
+		    }
+		}
+	    });
+
+	mModel.addWifiApTile(WifiApTile, new QuickSettingsModel.RefreshCallback() {
+		@Override
+		public void refreshView(QuickSettingsTileView view, State state) {
+		    TextView tv = (TextView) view.findViewById(R.id.wifi_ap_textview);
+		    ImageView iv = (ImageView) view.findViewById(R.id.wifi_ap_image);
+		    final WifiManager wifiManager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
+		    int WifiApState = wifiManager.getWifiApState();
+		    if (WifiApState == WifiManager.WIFI_AP_STATE_DISABLED || WifiApState == WifiManager.WIFI_AP_STATE_DISABLING) {
+			tv.setText("Wifi AP Off");
+			iv.setImageResource(R.drawable.ic_qs_wifi_ap_off);
+		    } else if (WifiApState == WifiManager.WIFI_AP_STATE_ENABLED || WifiApState == WifiManager.WIFI_AP_STATE_ENABLING) {
+			tv.setText("Wifi AP On");
+			iv.setImageResource(R.drawable.ic_qs_wifi_ap_on);
+		    }
+		}
+	    });
+	parent.addView(WifiApTile);
 
         if (mModel.deviceHasMobileData()) {
             // RSSI
